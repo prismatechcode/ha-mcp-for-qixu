@@ -1,6 +1,7 @@
 {
   "domain": "qixu_mcp",
   "name": "栖序 MCP",
+  "categories": ["ai_voice.voice_assistants"],
   "codeowners": ["@prismatechcode"],
   "config_flow": true,
   "dependencies": ["conversation", "http"],
