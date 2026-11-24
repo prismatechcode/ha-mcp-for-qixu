@@ -1,0 +1,40 @@
+name: Upload ZIP to Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate tag format
+        run: |
+          if [[ ! "$GITHUB_REF" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+.*$ ]]; then
+            echo "Error: tag must look like v1.0.0"
+            exit 1
+          fi
+
+      - name: Update manifest version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          sed -i "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" custom_components/qixu_mcp/manifest.json
+          cat custom_components/qixu_mcp/manifest.json
+
+      - name: Create ZIP
+        run: |
+          cd custom_components/qixu_mcp
+          zip -r ../../ha-mcp-for-qixu.zip . -x "__pycache__/*" "*.pyc"
+          cd ../..
+          unzip -l ha-mcp-for-qixu.zip
+
+      - name: Upload Release Asset
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${GITHUB_REF#refs/tags/}" ha-mcp-for-qixu.zip --clobber

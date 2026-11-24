@@ -1,0 +1,13 @@
+{
+  "domain": "qixu_mcp",
+  "name": "栖序 MCP",
+  "codeowners": ["@prismatechcode"],
+  "config_flow": true,
+  "dependencies": ["conversation", "http"],
+  "documentation": "https://github.com/prismatechcode/ha-mcp-for-qixu",
+  "integration_type": "service",
+  "iot_class": "cloud_push",
+  "issue_tracker": "https://github.com/prismatechcode/ha-mcp-for-qixu/issues",
+  "requirements": ["mcp>=1.14.1", "voluptuous-openapi"],
+  "version": "0.1.0"
+}

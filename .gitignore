@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.venv*/
+dist/
+hub/config.json
+/_*.py
+VERIFY.md

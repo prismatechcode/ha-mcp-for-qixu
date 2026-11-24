@@ -1,0 +1,5 @@
+{
+  "deepseek_api_key": "百炼 API Key",
+  "deepseek_base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+  "deepseek_model": "qwen-plus"
+}

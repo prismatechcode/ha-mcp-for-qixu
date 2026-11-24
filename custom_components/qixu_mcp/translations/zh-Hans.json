@@ -1,0 +1,31 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "连接栖序语音服务",
+        "description": "Home Assistant 会主动连接这个地址，把「语音助手 → 公开」里的设备提供给栖序。",
+        "data": {
+          "endpoint": "栖序接入点（ws:// 或 wss://）",
+          "token": "接入令牌",
+          "home_id": "现场编号",
+          "llm_hass_api": "控制方式",
+          "confirm_keywords": "需要确认的动作关键词"
+        },
+        "data_description": {
+          "endpoint": "由栖序后台分配，例如 wss://voice.example.com/mcp",
+          "token": "随连接一起发送，用于栖序后台识别这台 HA",
+          "home_id": "同一个接入点下区分不同现场，例如 office-5f",
+          "llm_hass_api": "一般选 Assist",
+          "confirm_keywords": "工具名、设备名或参数里含这些词时，先返回确认编号，用户确认后才执行。用逗号分隔"
+        }
+      }
+    },
+    "error": {
+      "invalid_endpoint": "接入点必须以 ws:// 或 wss:// 开头",
+      "llm_api_required": "至少选择一种控制方式"
+    },
+    "abort": {
+      "already_configured": "这个接入点和现场编号已经配置过"
+    }
+  }
+}
