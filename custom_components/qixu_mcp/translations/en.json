@@ -3,29 +3,40 @@
     "step": {
       "user": {
         "title": "Connect to Qixu voice service",
-        "description": "Home Assistant dials out to this endpoint and offers the entities exposed to voice assistants.",
+        "description": "Home Assistant dials out to this endpoint and offers the entities exposed to voice assistants. The connection is tested before saving.",
         "data": {
           "endpoint": "Qixu endpoint (ws:// or wss://)",
           "token": "Access token",
-          "home_id": "Site ID",
+          "home_id": "Site ID (optional)",
           "llm_hass_api": "Control API",
           "confirm_keywords": "Keywords that require confirmation"
         },
         "data_description": {
           "endpoint": "Issued by the Qixu console, e.g. wss://voice.example.com/mcp",
           "token": "Sent with the connection so the Qixu service can identify this Home Assistant",
-          "home_id": "Distinguishes sites on the same endpoint, e.g. office-5f",
-          "llm_hass_api": "Usually Assist",
+          "home_id": "If set, Qixu checks that it matches the home the token belongs to. Leave empty if unsure",
+          "llm_hass_api": "Usually Assist. You can also select other MCP servers configured in Home Assistant to offer them to Qixu",
           "confirm_keywords": "Comma separated. Matching tool calls return a confirm ID and run only after confirmation"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Re-enter Qixu token",
+        "description": "Qixu rejected the current token (endpoint {endpoint}). It may have been revoked or mistyped. Create a new token in the Qixu console and enter it here.",
+        "data": {
+          "token": "Access token",
+          "home_id": "Site ID (optional)"
         }
       }
     },
     "error": {
       "invalid_endpoint": "Endpoint must start with ws:// or wss://",
-      "llm_api_required": "Select at least one control API"
+      "llm_api_required": "Select at least one control API",
+      "invalid_auth": "Qixu rejected the token, or the site ID does not belong to the token's home",
+      "cannot_connect": "Cannot reach the endpoint. Check the address and network"
     },
     "abort": {
-      "already_configured": "This endpoint and site ID are already configured"
+      "already_configured": "This endpoint and site ID are already configured",
+      "reauth_successful": "Token updated, reconnecting"
     }
   }
 }

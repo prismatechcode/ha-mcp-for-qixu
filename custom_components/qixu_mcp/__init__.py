@@ -8,10 +8,10 @@ from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
 from homeassistant.core import Event, HomeAssistant
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
+from homeassistant.loader import async_get_integration
 
 from .const import DOMAIN
-from .session import SessionManager
-from .types import QixuMCPConfigEntry
+from .types import QixuMCPConfigEntry, QixuRuntimeData
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -23,7 +23,9 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: QixuMCPConfigEntry) -> bool:
-    entry.runtime_data = SessionManager()
+    entry.runtime_data = QixuRuntimeData()
+    integration = await async_get_integration(hass, DOMAIN)
+    entry.runtime_data.connection.plugin_version = str(integration.version or "")
 
     async def _start(_event: Event | None = None) -> None:
         from . import websocket_transport
@@ -44,6 +46,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: QixuMCPConfigEntry) -> b
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: QixuMCPConfigEntry) -> bool:
-    entry.runtime_data.close()
+    entry.runtime_data.sessions.close()
     hass.states.async_remove(f"{DOMAIN}.{entry.entry_id}_status")
     return True

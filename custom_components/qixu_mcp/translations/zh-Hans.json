@@ -3,29 +3,40 @@
     "step": {
       "user": {
         "title": "连接栖序语音服务",
-        "description": "Home Assistant 会主动连接这个地址，把「语音助手 → 公开」里的设备提供给栖序。",
+        "description": "Home Assistant 会主动连接这个地址，把「语音助手 → 公开」里的设备提供给栖序。提交前会先试连一次。",
         "data": {
           "endpoint": "栖序接入点（ws:// 或 wss://）",
           "token": "接入令牌",
-          "home_id": "现场编号",
+          "home_id": "现场编号（可选）",
           "llm_hass_api": "控制方式",
           "confirm_keywords": "需要确认的动作关键词"
         },
         "data_description": {
-          "endpoint": "由栖序后台分配，例如 wss://voice.example.com/mcp",
-          "token": "随连接一起发送，用于栖序后台识别这台 HA",
-          "home_id": "同一个接入点下区分不同现场，例如 office-5f",
-          "llm_hass_api": "一般选 Assist",
+          "endpoint": "由栖序控制台分配，例如 wss://voice.example.com/mcp",
+          "token": "随连接一起发送，用于栖序识别这台 HA",
+          "home_id": "填写后栖序会核对它与令牌是否属于同一个家；不确定可以留空",
+          "llm_hass_api": "一般选 Assist；也可以同时勾选 HA 里其他 MCP 服务，一并提供给栖序",
           "confirm_keywords": "工具名、设备名或参数里含这些词时，先返回确认编号，用户确认后才执行。用逗号分隔"
+        }
+      },
+      "reauth_confirm": {
+        "title": "重新填写栖序令牌",
+        "description": "栖序拒绝了当前令牌（接入点 {endpoint}）。令牌可能已被吊销或填错，请在栖序控制台生成新令牌后填入。",
+        "data": {
+          "token": "接入令牌",
+          "home_id": "现场编号（可选）"
         }
       }
     },
     "error": {
       "invalid_endpoint": "接入点必须以 ws:// 或 wss:// 开头",
-      "llm_api_required": "至少选择一种控制方式"
+      "llm_api_required": "至少选择一种控制方式",
+      "invalid_auth": "栖序拒绝了这个令牌，或现场编号与令牌不属于同一个家",
+      "cannot_connect": "连不上这个接入点，请检查地址和网络"
     },
     "abort": {
-      "already_configured": "这个接入点和现场编号已经配置过"
+      "already_configured": "这个接入点和现场编号已经配置过",
+      "reauth_successful": "令牌已更新，正在重新连接"
     }
   }
 }

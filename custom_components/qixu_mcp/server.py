@@ -19,7 +19,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import llm
 
 from .const import CONFIRM_TOOL_NAME, CONFIRM_TTL_SECONDS, STATELESS_LLM_API
-from .safety import ConfirmGate
+from .safety import ConfirmGate, action_label
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -58,12 +58,13 @@ async def create_server(
     llm_api_id: str | list[str],
     llm_context: llm.LLMContext,
     gate: ConfirmGate,
+    plugin_version: str,
 ) -> Server:
     """Create the MCP server for one Qixu connection."""
     if llm_api_id == STATELESS_LLM_API:
         llm_api_id = llm.LLM_API_ASSIST
 
-    server = Server[Any]("qixu-home-assistant")
+    server = Server[Any]("qixu-home-assistant", version=plugin_version)
 
     async def get_api_instance() -> llm.APIInstance:
         return await llm.async_get_api(hass, llm_api_id, llm_context)
@@ -186,15 +187,14 @@ async def create_server(
         llm_api = await get_api_instance()
         tool = next((t for t in llm_api.tools if t.name == name), None)
         description = (tool.description or "") if tool else ""
-        if name.startswith("script__"):
-            state = hass.states.get(f"script.{name.removeprefix('script__')}")
-            if state is not None:
-                description = " ".join(
-                    filter(None, [state.attributes.get("friendly_name"), description])
-                )
+        # Script tools are named by object id, with or without a "script__" prefix.
+        state = hass.states.get(f"script.{name.removeprefix('script__')}")
+        friendly_name = state.attributes.get("friendly_name") if state else None
+        if friendly_name:
+            description = f"{friendly_name} {description}"
         keyword = gate.matched_keyword(name, description, arguments)
         if keyword:
-            label = description or name
+            label = action_label(name, friendly_name, arguments)
             confirm_id = gate.hold(name, arguments, label)
             _LOGGER.info("Held L3 action %s (%s) as %s", name, keyword, confirm_id)
             return _text(

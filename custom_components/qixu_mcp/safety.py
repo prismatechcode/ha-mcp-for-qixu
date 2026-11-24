@@ -11,6 +11,26 @@ from typing import Any
 from .const import CONFIRM_TTL_SECONDS
 
 
+_INTENT_VERBS = {"HassTurnOn": "打开", "HassTurnOff": "关闭", "HassToggle": "切换"}
+# For lock entities HA maps HassTurnOn to lock and HassTurnOff to unlock.
+_LOCK_VERBS = {"HassTurnOn": "锁上", "HassTurnOff": "打开"}
+
+
+def action_label(
+    tool_name: str, friendly_name: str | None, arguments: dict[str, Any]
+) -> str:
+    """Short spoken name for a held action, e.g. "打开门锁" or "打开大门锁"."""
+    if friendly_name:
+        return friendly_name
+    base = tool_name.rsplit("__", 1)[-1]
+    target = str((arguments or {}).get("name") or (arguments or {}).get("area") or "")
+    if not target:
+        return base
+    verbs = _LOCK_VERBS if "锁" in target else _INTENT_VERBS
+    verb = verbs.get(base)
+    return f"{verb}{target}" if verb else f"{base} {target}"
+
+
 def parse_keywords(raw: str | None) -> list[str]:
     if not raw:
         return []

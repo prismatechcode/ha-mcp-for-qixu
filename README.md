@@ -20,9 +20,9 @@ This integration is a connector for one specific service, the Qixu voice platfor
 - **Outbound only.** Home Assistant opens the connection. No inbound port, port forwarding, or public address is needed.
 - **Not a general MCP endpoint.** It does not expose an HTTP/SSE MCP server for desktop clients such as Claude Desktop, and it is not an MCP client or a conversation agent inside Home Assistant.
 - **Scoped to Assist.** Only entities and scripts you expose under *Settings → Voice assistants → Expose* are available, through Home Assistant's own LLM API. It does not add admin tools for editing configuration, automations, or users.
-- **Per-site identity.** Each connection carries an access token (`Authorization: Bearer`) and a site ID (`X-Qixu-Home`), so one Qixu account can serve several homes or offices.
+- **Per-site identity.** Each connection carries an access token (`Authorization: Bearer`) and, optionally, a site ID (`X-Qixu-Home`), so one Qixu account can serve several homes or offices. The plugin and Home Assistant versions are sent as `X-Qixu-Plugin-Version` and `X-HA-Version`.
 - **Confirmation for sensitive actions.** Tool calls that match configured keywords (locks, door opening, disarming, and similar) are held and only run after an explicit confirmation step (see below).
-- **Real connection state.** A status entity reports `connecting`, `connected`, or `disconnected` based on the actual socket.
+- **Real connection state.** A status entity reports `connecting`, `connected`, `disconnected`, or `auth_failed` based on the actual socket.
 
 ## Requirements
 
@@ -49,15 +49,23 @@ Settings → Devices & services → Add integration → **栖序 MCP**.
 |-------|-------|
 | Qixu endpoint | `wss://<qixu-host>/mcp` (`ws://` for local testing only) |
 | Access token | Issued by the Qixu console |
-| Site ID | Any label for this site, e.g. `office` |
-| Control API | Assist |
+| Site ID | Optional. Leave empty if the token is bound to one site; otherwise e.g. `office` |
+| Control API | Assist. Selecting more than one API also exposes their tools, e.g. tools from other MCP servers added through Home Assistant's MCP client |
 | Confirmation keywords | Comma-separated; defaults are Chinese terms for lock, unlock, open door, car out, disarm |
+
+The integration tests the connection before saving. A rejected token or mismatched site ID, or an unreachable endpoint, is reported on the form instead of creating a broken entry.
 
 Then expose the devices and scripts you want under *Settings → Voice assistants → Expose*.
 
 To check the connection, open *Developer tools → States* and search for `qixu_mcp.`. The state should be `connected`.
 
 You can add the integration more than once to connect to different endpoints or site IDs.
+
+## Connection handling
+
+- **Reconnect.** After a drop, the integration retries with exponential backoff and jitter, from 5 seconds up to 5 minutes. The delay resets once a connection has stayed up for a minute.
+- **Re-authentication.** If the Qixu service rejects the token (HTTP 401 or 403), the integration stops retrying, sets the status to `auth_failed`, and Home Assistant shows a *Reconfigure* prompt where you enter a new token.
+- **Diagnostics.** *Settings → Devices & services → 栖序 MCP → ⋮ → Download diagnostics* returns the plugin and Home Assistant versions, connection state, last error, and exposed tool names. The token is redacted and the endpoint is reduced to scheme, host, and path.
 
 ## Confirmation for sensitive actions
 
@@ -101,13 +109,14 @@ HTTP calls need `Authorization: Bearer <token>`. The voice endpoint reads an LLM
 python -m venv .venv-test
 .\.venv-test\Scripts\python -m pip install "mcp==1.26.0" "anyio==4.13.0" aiohttp
 .\.venv-test\Scripts\python tests\test_hub_e2e.py
+.\.venv-test\Scripts\python tests\test_plugin_units.py
 ```
 
-`tests/fake_ha.py` simulates a Home Assistant instance with the same MCP library version and the integration's real confirmation logic. It covers connection, authentication, tool listing, pass-through calls, and held actions. The config flow and Assist tool loading need a real Home Assistant instance.
+`tests/fake_ha.py` simulates a Home Assistant instance with the same MCP library version and the integration's real confirmation logic. It covers connection, authentication, tool listing, pass-through calls, and held actions. `tests/test_plugin_units.py` covers backoff, request headers, endpoint redaction, action labels, and the connection test against a local WebSocket server. The config flow, re-authentication, diagnostics, and Assist tool loading need a real Home Assistant instance.
 
 ## Releasing
 
-Publish a GitHub release with a tag such as `v0.1.0`. The `release.yml` workflow sets the manifest version from the tag, builds `ha-mcp-for-qixu.zip`, and attaches it to the release.
+Publish a GitHub release with a tag such as `v0.2.0`. The `release.yml` workflow sets the manifest version from the tag, builds `ha-mcp-for-qixu.zip`, and attaches it to the release.
 
 ## License
 
