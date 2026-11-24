@@ -12,10 +12,7 @@ from typing import Any
 _LOGGER = logging.getLogger("qixu_hub.voice")
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_LLM_CONFIGS = (
-    ROOT / "hub" / "config.json",
-    Path(r"d:\workspace\ha-voice-assistant\config.json"),
-)
+DEFAULT_LLM_CONFIGS = (ROOT / "hub" / "config.json",)
 
 
 def load_llm_config() -> dict[str, Any]:
@@ -106,7 +103,7 @@ def rule_plan(text: str) -> dict[str, Any] | None:
 
 def llm_plan(text: str, tools: list[dict[str, Any]], llm: dict[str, Any]) -> dict[str, Any]:
     if not llm.get("api_key"):
-        raise RuntimeError("未配置大模型 API Key（hub/config.json 或 ha-voice-assistant/config.json）")
+        raise RuntimeError("未配置大模型 API Key（hub/config.json）")
 
     tool_lines = []
     for tool in tools:

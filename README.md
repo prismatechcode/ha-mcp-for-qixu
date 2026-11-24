@@ -1,96 +1,101 @@
-# ha-mcp-for-qixu
+# Qixu MCP for Home Assistant
 
-Home Assistant 插件（域名 `qixu_mcp`）：HA 主动连到栖序语音服务的接入点，在这条连接上当 MCP 服务端，把「设置 → 语音助手 → 公开」里的设备和脚本作为工具提供出去。栖序那边的大模型听懂一句话后，通过这条连接调用工具控设备。
+[中文说明](README.zh-CN.md)
+
+Custom integration (domain `qixu_mcp`) that connects Home Assistant to the **Qixu voice service**. Home Assistant dials out over WebSocket and acts as an MCP server on that connection, exposing the entities and scripts you have exposed to Assist as tools. The Qixu service handles speech recognition and the language model, then calls those tools to control devices.
 
 ```text
-语音终端 → 栖序语音服务（识别、大模型）
-                 ▲
-                 │  ws:// 或 wss://，HA 主动拨出
-                 │
-HA + qixu_mcp ───┘  工具 = Assist 已公开的实体和脚本
+Voice device → Qixu voice service (ASR + LLM)
+                     ▲
+                     │  ws:// or wss://, opened by Home Assistant
+                     │
+Home Assistant ──────┘  tools = Assist-exposed entities and scripts
+  + qixu_mcp
 ```
 
-HA 不需要开放端口，也不用公网地址。接入需携带令牌（`Authorization: Bearer`）和现场编号（`X-Qixu-Home`）。命中安防关键词时先返回确认编号，确认后才执行。
+## What it is and what it is not
 
-## 安装
+This integration is a connector for one specific service, the Qixu voice platform.
 
-1. 把 `custom_components/qixu_mcp/` 拷到 HA 的 `/config/custom_components/qixu_mcp/`，或运行 `scripts/install.ps1`（走 SSH 插件的 22222 端口）。
-2. 重启 Home Assistant。
-3. 设置 → 设备与服务 → 添加集成 → 搜索「栖序 MCP」，填写：
+- **Outbound only.** Home Assistant opens the connection. No inbound port, port forwarding, or public address is needed.
+- **Not a general MCP endpoint.** It does not expose an HTTP/SSE MCP server for desktop clients such as Claude Desktop, and it is not an MCP client or a conversation agent inside Home Assistant.
+- **Scoped to Assist.** Only entities and scripts you expose under *Settings → Voice assistants → Expose* are available, through Home Assistant's own LLM API. It does not add admin tools for editing configuration, automations, or users.
+- **Per-site identity.** Each connection carries an access token (`Authorization: Bearer`) and a site ID (`X-Qixu-Home`), so one Qixu account can serve several homes or offices.
+- **Confirmation for sensitive actions.** Tool calls that match configured keywords (locks, door opening, disarming, and similar) are held and only run after an explicit confirmation step (see below).
+- **Real connection state.** A status entity reports `connecting`, `connected`, or `disconnected` based on the actual socket.
 
-| 字段 | 填什么 |
-|------|--------|
-| 栖序接入点 | `ws://<栖序服务地址>:8791/mcp`，正式环境用 `wss://` |
-| 接入令牌 | 栖序后台分配 |
-| 现场编号 | 例如 `office` |
-| 控制方式 | Assist |
-| 需要确认的动作关键词 | 默认即可 |
+## Requirements
 
-4. 设置 → 语音助手 → 公开：勾选要被语音控制的设备和脚本。
-5. 开发者工具 → 状态里搜 `qixu_mcp.`，状态为 `connected` 表示连上了。
+- Home Assistant 2026.7 or later
+- A Qixu endpoint URL and access token, issued by the Qixu console
 
-同一台 HA 可以加多条，每条连不同的接入点或现场编号。
+## Installation
 
-## 安防确认
+### HACS
 
-大模型调用的工具，如果工具名、脚本显示名或参数里出现关键词，插件不执行，返回：
+1. HACS → Integrations → ⋮ → Custom repositories.
+2. Add `https://github.com/prismatechcode/ha-mcp-for-qixu`, category **Integration**.
+3. Install **栖序 MCP** and restart Home Assistant.
+
+### Manual
+
+Copy `custom_components/qixu_mcp/` to `/config/custom_components/qixu_mcp/` and restart Home Assistant.
+
+## Configuration
+
+Settings → Devices & services → Add integration → **栖序 MCP**.
+
+| Field | Value |
+|-------|-------|
+| Qixu endpoint | `wss://<qixu-host>/mcp` (`ws://` for local testing only) |
+| Access token | Issued by the Qixu console |
+| Site ID | Any label for this site, e.g. `office` |
+| Control API | Assist |
+| Confirmation keywords | Comma-separated; defaults are Chinese terms for lock, unlock, open door, car out, disarm |
+
+Then expose the devices and scripts you want under *Settings → Voice assistants → Expose*.
+
+To check the connection, open *Developer tools → States* and search for `qixu_mcp.`. The state should be `connected`.
+
+You can add the integration more than once to connect to different endpoints or site IDs.
+
+## Confirmation for sensitive actions
+
+If a tool name, script name, or argument contains one of the confirmation keywords, the integration does not run it. It returns:
 
 ```json
 {"requires_confirmation": true, "confirm_id": "a1b2c3d4", "action": "打开门锁", "speech": "这是安防动作：打开门锁。请确认后再执行。"}
 ```
 
-用户说「确认」后，栖序服务调用 `QixuConfirmAction`，带上 `confirm_id`，30 秒内有效，只能用一次。
+The Qixu service runs the action by calling the `QixuConfirmAction` tool with that `confirm_id`. Each ID is valid for 30 seconds and can be used once.
 
-插件能保证「不经过确认就不会执行」，但分不清确认是不是用户亲口说的。要求用户亲口确认这一步，由栖序服务端负责：只有识别到用户说了确认，才发 `QixuConfirmAction`。
+The integration guarantees that a held action never runs without this call. Verifying that the user actually spoke the confirmation is the Qixu service's responsibility.
 
-## 本地接入端（开发用）
+## Privacy
 
-`hub/qixu_hub.py` 是一个最小的栖序接入端，用来在没有正式后台时联调：
+- Only Assist-exposed entities and scripts are visible to the Qixu service.
+- The access token is stored in the config entry and sent only to the configured endpoint.
+- No data is sent anywhere other than the endpoint you configure.
+
+## Development
+
+`hub/` contains a minimal local stand-in for the Qixu service, used for testing without the production backend. It is not part of the integration and is not installed by HACS.
 
 ```powershell
-# 工作目录用 hub/，以便加载 voice_agent
-python hub/qixu_hub.py --port 8791 --token <令牌>
-# 或
-.\scripts\restart_hub.ps1
+python hub/qixu_hub.py --port 8791 --token <token>
 ```
 
-| 接口 | 说明 |
-|------|------|
-| `ws://<本机>:8791/mcp` | 填到 HA 插件里的接入点 |
-| `GET /health` | 健康检查与已连接现场 |
-| `GET /homes` | 已连上的现场 |
-| `GET /homes/{home}/tools` | 该现场的工具；加 `?refresh=1` 重新拉取 |
-| `POST /homes/{home}/call` | `{"name": "...", "arguments": {...}}` 调用工具 |
-| `POST /v1/voice` | 自然语言控家（默认连 `office`，可用 `?home=`） |
-| `POST /homes/{home}/voice` | 指定现场的自然语言控家 |
+| Endpoint | Purpose |
+|----------|---------|
+| `ws://<host>:8791/mcp` | Point the integration here |
+| `GET /homes` | Connected sites |
+| `GET /homes/{home}/tools` | Tools for a site |
+| `POST /homes/{home}/call` | Call a tool directly |
+| `POST /v1/voice` | Send a text command, e.g. `{"text": "打开办公室灯"}` |
 
-HTTP 接口同样要带 `Authorization: Bearer <令牌>`。
+HTTP calls need `Authorization: Bearer <token>`. The voice endpoint reads an LLM key from `hub/config.json` (see `hub/config.example.json`).
 
-### 语音接口
-
-```http
-POST /v1/voice
-Authorization: Bearer <令牌>
-Content-Type: application/json
-
-{"text":"打开办公室灯","session_id":"可选"}
-```
-
-流程：规则快路径（开/关办公室灯、空调等）→ 否则百炼大模型选工具 → 经 MCP 调 HA。
-
-可选 `hub/config.json`（参考 `hub/config.example.json`）：
-
-```json
-{
-  "deepseek_api_key": "...",
-  "deepseek_base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-  "deepseek_model": "qwen-plus"
-}
-```
-
-未放 `hub/config.json` 时，会回退读取 `ha-voice-assistant/config.json`。
-
-## 测试
+### Tests
 
 ```powershell
 python -m venv .venv-test
@@ -98,14 +103,12 @@ python -m venv .venv-test
 .\.venv-test\Scripts\python tests\test_hub_e2e.py
 ```
 
-`tests/fake_ha.py` 用和 HA 2026 相同版本的 MCP 库模拟一台 HA，配合插件里真实的确认逻辑，验证连接、鉴权、列工具、普通动作直通、安防动作确认。它不覆盖插件里依赖 HA 的部分（配置界面、读取 Assist 工具），那部分要装到真机验证。
+`tests/fake_ha.py` simulates a Home Assistant instance with the same MCP library version and the integration's real confirmation logic. It covers connection, authentication, tool listing, pass-through calls, and held actions. The config flow and Assist tool loading need a real Home Assistant instance.
 
-## 发版
+## Releasing
 
-1. 推送到公开 GitHub 仓库，`hacs.yaml` 和 `hassfest.yaml` 两个检查需通过。
-2. 在 GitHub 上用 `v0.1.0` 这样的 tag 发布 Release，`release.yml` 会把 `manifest.json` 的版本改成 tag 版本，打包 `ha-mcp-for-qixu.zip` 并上传到这个 Release。
-3. 用户在 HACS → 自定义存储库中添加仓库地址（类别选 Integration）即可安装和更新。
+Publish a GitHub release with a tag such as `v0.1.0`. The `release.yml` workflow sets the manifest version from the tag, builds `ha-mcp-for-qixu.zip`, and attaches it to the release.
 
-## 许可
+## License
 
-MIT。
+MIT
